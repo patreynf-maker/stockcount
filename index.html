@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="es">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -33,7 +34,7 @@
             background-color: var(--bg-color);
             color: var(--text-main);
             overflow-x: hidden;
-            background-image: 
+            background-image:
                 radial-gradient(circle at 20% 20%, rgba(99, 102, 241, 0.15) 0%, transparent 40%),
                 radial-gradient(circle at 80% 80%, rgba(16, 185, 129, 0.1) 0%, transparent 40%);
             min-height: 100vh;
@@ -67,6 +68,7 @@
             font-weight: 600;
             letter-spacing: -1px;
             background: linear-gradient(to right, #fff, #94a3b8);
+            background-clip: text;
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
         }
@@ -74,10 +76,13 @@
         /* Scanner Section */
         #scanner-container {
             width: 100%;
-            height: 300px;
+            min-height: 350px;
             overflow: hidden;
             margin-bottom: 20px;
             position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
 
         #reader {
@@ -85,14 +90,15 @@
             border: none !important;
         }
 
-        #reader__dashboard_section_csr button {
-            background: var(--primary) !important;
-            color: white !important;
-            border: none !important;
-            padding: 8px 16px !important;
-            border-radius: 8px !important;
-            margin-top: 10px !important;
+        /* Fixed the overlap by adding more spacing and removing absolute positioning if any */
+        .controls-card {
+            padding: 24px;
+            margin-top: 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
         }
+
 
         /* Forms & Inputs */
         .input-group {
@@ -272,17 +278,33 @@
 
         /* Animations */
         @keyframes fadeInDown {
-            from { opacity: 0; transform: translateY(-20px); }
-            to { opacity: 1; transform: translateY(0); }
+            from {
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
         }
 
         @keyframes slideIn {
-            from { opacity: 0; transform: translateX(-20px); }
-            to { opacity: 1; transform: translateX(0); }
+            from {
+                opacity: 0;
+                transform: translateX(-20px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
         }
 
         /* Utility classes */
-        .hidden { display: none !important; }
+        .hidden {
+            display: none !important;
+        }
 
         .empty-state {
             text-align: center;
@@ -307,6 +329,7 @@
         }
     </style>
 </head>
+
 <body>
 
     <button id="export-btn" class="glass btn action-icon" onclick="exportToCSV()" title="Exportar CSV">
@@ -324,8 +347,8 @@
             <div id="scanner-container" class="glass">
                 <div id="reader"></div>
             </div>
-            <div class="glass" style="padding: 20px; margin-top: 20px;">
-                <p id="scan-status" style="text-align: center; color: var(--text-dim); margin-bottom: 15px;">Apunta al código de barras</p>
+            <div class="glass controls-card">
+                <p id="scan-status" style="text-align: center; color: var(--text-dim);">Apunta al código de barras</p>
                 <button class="btn btn-secondary" onclick="openManualModal()">
                     <i data-lucide="keyboard"></i> Entrada Manual
                 </button>
@@ -399,9 +422,9 @@
         function initScanner() {
             html5QrCode = new Html5Qrcode("reader");
             const config = { fps: 10, qrbox: { width: 250, height: 150 } };
-            
+
             html5QrCode.start(
-                { facingMode: "environment" }, 
+                { facingMode: "environment" },
                 config,
                 onScanSuccess
             ).catch(err => {
@@ -411,9 +434,13 @@
         }
 
         function onScanSuccess(decodedText, decodedResult) {
-            // Beep sound (browser support varies)
-            try { 
-                const context = new AudioContext();
+            if (currentBarcode === decodedText && document.getElementById('qty-modal').style.display === 'flex') {
+                return;
+            }
+
+            // Beep sound
+            try {
+                const context = new (window.AudioContext || window.webkitAudioContext)();
                 const v = context.createOscillator();
                 const u = context.createGain();
                 v.connect(u);
@@ -423,22 +450,26 @@
                 u.gain.value = 0.1;
                 v.start(context.currentTime);
                 v.stop(context.currentTime + 0.1);
-            } catch(e) {}
+            } catch (e) { }
 
             currentBarcode = decodedText;
             document.getElementById('modal-barcode').innerText = `Código: ${decodedText}`;
             openModal('qty-modal');
-            document.getElementById('qty-input').focus();
-            
-            // Temporary stop to prevent multiple reads
-            html5QrCode.pause();
+
+            setTimeout(() => {
+                const input = document.getElementById('qty-input');
+                input.focus();
+                input.select();
+            }, 100);
+
+            html5QrCode.pause(true);
         }
 
         // View Management
         function switchView(viewName) {
             document.querySelectorAll('.view').forEach(v => v.classList.add('hidden'));
             document.querySelectorAll('.nav-item').forEach(v => v.classList.remove('active'));
-            
+
             if (viewName === 'scan') {
                 document.getElementById('view-scan').classList.remove('hidden');
                 document.querySelector('[onclick="switchView(\'scan\')"]').classList.add('active');
@@ -456,18 +487,22 @@
             const qty = parseInt(document.getElementById('qty-input').value) || 1;
             addOrUpdateStock(currentBarcode, qty);
             closeModal('qty-modal');
-            
-            // Resume scanner
-            if (html5QrCode) html5QrCode.resume();
+
+            // Reset scanner status with a small delay to allow re-scans of same code
+            setTimeout(() => {
+                if (html5QrCode) html5QrCode.resume();
+                currentBarcode = null;
+            }, 300);
+
             document.getElementById('qty-input').value = 1;
         }
 
         function confirmManualEntry() {
             const barcode = document.getElementById('manual-barcode-input').value;
             const qty = parseInt(document.getElementById('manual-qty-input').value) || 1;
-            
+
             if (!barcode) return alert("Por favor ingresa un código.");
-            
+
             addOrUpdateStock(barcode, qty);
             closeModal('manual-modal');
             document.getElementById('manual-barcode-input').value = "";
@@ -476,7 +511,7 @@
 
         function addOrUpdateStock(barcode, qty) {
             const index = stockData.findIndex(item => item.barcode === barcode);
-            
+
             if (index > -1) {
                 stockData[index].qty += qty;
                 stockData[index].lastUpdated = new Date().toLocaleString();
@@ -487,7 +522,7 @@
                     lastUpdated: new Date().toLocaleString()
                 });
             }
-            
+
             saveData();
             renderHistory();
         }
@@ -562,7 +597,7 @@
         // Export Logic
         function exportToCSV() {
             if (stockData.length === 0) return alert("No hay datos para exportar.");
-            
+
             let csvContent = "data:text/csv;charset=utf-8,Codigo,Cantidad,Ultima Actualizacion\n";
             stockData.forEach(item => {
                 csvContent += `"${item.barcode}",${item.qty},"${item.lastUpdated}"\n`;
@@ -584,7 +619,10 @@
 
         function closeModal(id) {
             document.getElementById(id).style.display = 'none';
-            if (id === 'qty-modal' && html5QrCode) html5QrCode.resume();
+            if (id === 'qty-modal' && html5QrCode) {
+                html5QrCode.resume();
+                currentBarcode = null;
+            }
         }
 
         function openManualModal() {
@@ -598,4 +636,5 @@
         });
     </script>
 </body>
+
 </html>
