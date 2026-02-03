@@ -76,9 +76,11 @@
         /* Scanner Section */
         #scanner-container {
             width: 100%;
-            min-height: 250px;
+            height: 200px;
+            /* Reducido a altura fija */
+            min-height: 200px;
             overflow: hidden;
-            margin-bottom: 12px;
+            margin-bottom: 8px;
             position: relative;
             display: flex;
             align-items: center;
@@ -389,7 +391,8 @@
             <h3 style="margin-bottom: 20px;" id="modal-title">Agregar Cantidad</h3>
             <p id="modal-barcode" style="color: var(--text-dim); margin-bottom: 20px;"></p>
             <div class="input-group">
-                <input type="number" id="qty-input" placeholder="Cantidad" value="1" min="1">
+                <input type="number" id="qty-input" placeholder="Cantidad" value="1" min="1"
+                    onkeydown="if(event.key==='Enter') confirmAddStock()">
             </div>
             <button class="btn btn-primary" onclick="confirmAddStock()">Confirmar</button>
         </div>
@@ -402,11 +405,13 @@
             <h3 style="margin-bottom: 20px;">Entrada Manual</h3>
             <div class="input-group">
                 <label>Código de Barras</label>
-                <input type="text" id="manual-barcode-input" placeholder="Ingresa el código...">
+                <input type="text" id="manual-barcode-input" placeholder="Ingresa el código..."
+                    onkeydown="if(event.key==='Enter') document.getElementById('manual-qty-input').focus()">
             </div>
             <div class="input-group">
                 <label>Cantidad</label>
-                <input type="number" id="manual-qty-input" placeholder="Cantidad" value="1" min="1">
+                <input type="number" id="manual-qty-input" placeholder="Cantidad" value="1" min="1"
+                    onkeydown="if(event.key==='Enter') confirmManualEntry()">
             </div>
             <button class="btn btn-primary" onclick="confirmManualEntry()">Guardar</button>
         </div>
