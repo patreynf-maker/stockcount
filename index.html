@@ -76,9 +76,9 @@
         /* Scanner Section */
         #scanner-container {
             width: 100%;
-            min-height: 350px;
+            min-height: 250px;
             overflow: hidden;
-            margin-bottom: 20px;
+            margin-bottom: 12px;
             position: relative;
             display: flex;
             align-items: center;
@@ -256,9 +256,12 @@
             background: rgba(0, 0, 0, 0.8);
             display: none;
             justify-content: center;
-            align-items: center;
+            align-items: flex-start;
+            /* Subir la ventana */
             z-index: 2000;
             padding: 20px;
+            padding-top: 40px;
+            /* Margen superior para el teclado */
         }
 
         .modal {
@@ -473,14 +476,19 @@
             if (viewName === 'scan') {
                 document.getElementById('view-scan').classList.remove('hidden');
                 document.querySelector('[onclick="switchView(\'scan\')"]').classList.add('active');
-                if (html5QrCode && html5QrCode.isPaused) html5QrCode.resume();
+                if (html5QrCode) {
+                    html5QrCode.resume();
+                }
             } else {
                 document.getElementById('view-history').classList.remove('hidden');
                 document.querySelector('[onclick="switchView(\'history\')"]').classList.add('active');
                 renderHistory();
-                if (html5QrCode) html5QrCode.pause();
+                if (html5QrCode) {
+                    html5QrCode.pause(true);
+                }
             }
         }
+
 
         // Stock Management Logic
         function confirmAddStock() {
