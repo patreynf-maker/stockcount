@@ -380,9 +380,18 @@
             </div>
             <div class="glass controls-card">
                 <p id="scan-status" style="text-align: center; color: var(--text-dim);">Apunta al código de barras</p>
-                <button class="btn btn-secondary" onclick="openManualModal()">
-                    <i data-lucide="keyboard"></i> Entrada Manual
-                </button>
+
+                <div style="display: flex; gap: 10px; width: 100%;">
+                    <button class="btn btn-secondary" onclick="openManualModal()" style="flex: 1;">
+                        <i data-lucide="keyboard"></i> Manual
+                    </button>
+                    <button class="btn btn-secondary" onclick="document.getElementById('scan-file').click()"
+                        style="flex: 1;">
+                        <i data-lucide="camera"></i> Foto
+                    </button>
+                    <input type="file" id="scan-file" hidden accept="image/*" capture="environment"
+                        onchange="handleScanFile(this)">
+                </div>
             </div>
         </div>
 
@@ -623,6 +632,34 @@
 
         function saveData() {
             localStorage.setItem('stock_data', JSON.stringify(stockData));
+        }
+
+        // iOS Fallback Logic
+        function handleScanFile(input) {
+            const file = input.files[0];
+            if (!file) return;
+
+            // Show loading
+            document.getElementById('scan-status').innerText = "Procesando imagen...";
+
+            html5QrCode.scanFileV2(file, true)
+                .then(decodedResult => {
+                    // Success
+                    onScanSuccess(decodedResult.decodedText, decodedResult);
+                    document.getElementById('scan-status').innerText = "¡Código detectado!";
+                })
+                .catch(err => {
+                    // Error
+                    console.error(err);
+                    document.getElementById('scan-status').innerText = "No se detectó código. Intenta acercarte más.";
+                    document.getElementById('scan-status').style.color = "var(--danger)";
+                    setTimeout(() => {
+                        document.getElementById('scan-status').innerText = "Apunta al código de barras";
+                        document.getElementById('scan-status').style.color = "var(--text-dim)";
+                    }, 3000);
+                });
+
+            input.value = '';
         }
 
         function renderHistory() {
