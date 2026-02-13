@@ -351,10 +351,27 @@
     </div>
 
     <div class="container">
-        <header>
+        <header style="margin-bottom: 20px;">
             <h1>StockMaster</h1>
             <p style="color: var(--text-dim); font-size: 0.9rem;">Conteo de inventario inteligente</p>
         </header>
+
+        <!-- Dashboard Totals -->
+        <div class="glass"
+            style="padding: 15px; margin-bottom: 20px; display: flex; justify-content: space-around; text-align: center;">
+            <div>
+                <p style="font-size: 0.8rem; color: var(--text-dim);">Items</p>
+                <h3 id="total-items">0</h3>
+            </div>
+            <div>
+                <p style="font-size: 0.8rem; color: var(--text-dim);">Unidades</p>
+                <h3 id="total-qty" style="color: var(--primary);">0</h3>
+            </div>
+            <div>
+                <p style="font-size: 0.8rem; color: var(--text-dim);">Total</p>
+                <h3 id="total-value" style="color: var(--accent);">$0</h3>
+            </div>
+        </div>
 
         <!-- View: Scanner -->
         <div id="view-scan" class="view">
@@ -442,8 +459,19 @@
 
         // Initialize Scanner
         function initScanner() {
+            // iOS requires HTTPS or localhost
+            if (window.location.protocol === 'file:') {
+                document.getElementById('scan-status').innerHTML = "⚠️ <b>Error iOS/Android:</b> La cámara no funciona abriendo el archivo directamente.<br>Debes subirlo a un servidor seguro (como GitHub) o usar un servidor local.";
+                document.getElementById('scan-status').style.color = "var(--danger)";
+                return;
+            }
+
             html5QrCode = new Html5Qrcode("reader");
-            const config = { fps: 10, qrbox: { width: 250, height: 150 } };
+            const config = {
+                fps: 10,
+                qrbox: { width: 200, height: 120 }, // Más pequeño para asegurar compatibilidad
+                aspectRatio: 1.0
+            };
 
             html5QrCode.start(
                 { facingMode: "environment" },
@@ -451,7 +479,8 @@
                 onScanSuccess
             ).catch(err => {
                 console.error("Error starting scanner", err);
-                document.getElementById('scan-status').innerText = "Acceso a cámara denegado o no disponible.";
+                document.getElementById('scan-status').innerHTML = `Error de Cámara: ${err?.message || err}<br>Asegúrate de dar permisos y estar en HTTPS.`;
+                document.getElementById('scan-status').style.color = "var(--danger)";
             });
         }
 
@@ -691,6 +720,10 @@
             const container = document.getElementById('items-container');
             container.innerHTML = "";
 
+            let totalItems = 0;
+            let totalQty = 0;
+            let totalValue = 0;
+
             if (stockData.length === 0) {
                 container.innerHTML = `
                     <div class="empty-state">
@@ -698,15 +731,24 @@
                         <p>No hay productos contados aún.</p>
                     </div>
                 `;
-                lucide.createIcons();
-                return;
             }
 
             [...stockData].reverse().forEach((item, revIndex) => {
                 const actualIndex = stockData.length - 1 - revIndex;
                 const product = productsData[item.barcode];
                 const displayName = product ? product.name : item.barcode;
-                const displaySubtitle = product ? `${item.barcode} - ${product.price}` : item.lastUpdated;
+                const priceStr = product ? product.price : '0';
+
+                // Parse Price Logic
+                // Removes currency symbols and dots/commas handling
+                const cleanPrice = parseFloat(String(priceStr).replace(/[^0-9.,]/g, '').replace(',', '.')) || 0;
+                const itemTotal = cleanPrice * item.qty;
+
+                totalItems++;
+                totalQty += item.qty;
+                totalValue += itemTotal;
+
+                const displaySubtitle = product ? `$${cleanPrice.toFixed(2)} x ${item.qty} = $${itemTotal.toFixed(2)}` : item.lastUpdated;
 
                 const div = document.createElement('div');
                 div.className = "stock-item glass";
@@ -723,6 +765,12 @@
                 `;
                 container.appendChild(div);
             });
+
+            // Update Dashboard
+            document.getElementById('total-items').innerText = totalItems;
+            document.getElementById('total-qty').innerText = totalQty;
+            document.getElementById('total-value').innerText = `$${totalValue.toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
+
             lucide.createIcons();
         }
 
