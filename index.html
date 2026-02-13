@@ -9,6 +9,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600&display=swap" rel="stylesheet">
     <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+    <script src="https://unpkg.com/read-excel-file@5.x/bundle/read-excel-file.min.js"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <style>
         :root {
@@ -337,9 +338,17 @@
 
 <body>
 
-    <button id="export-btn" class="glass btn action-icon" onclick="exportToCSV()" title="Exportar CSV">
-        <i data-lucide="download"></i>
-    </button>
+    <div style="position: fixed; top: 20px; right: 20px; z-index: 100; display: flex; gap: 10px;">
+        <input type="file" id="import-file" hidden accept=".xlsx, .xls, .csv" onchange="handleFileSelect(this)">
+        <button class="glass btn action-icon" onclick="document.getElementById('import-file').click()"
+            title="Cargar Lista Precios" style="width: 45px; height: 45px; padding: 8px; border-radius: 50%;">
+            <i data-lucide="upload-cloud"></i>
+        </button>
+        <button class="glass btn action-icon" onclick="exportToCSV()" title="Exportar CSV"
+            style="width: 45px; height: 45px; padding: 8px; border-radius: 50%;">
+            <i data-lucide="download"></i>
+        </button>
+    </div>
 
     <div class="container">
         <header>
@@ -388,8 +397,12 @@
     <div id="qty-modal" class="modal-overlay">
         <div class="modal glass">
             <i data-lucide="x" class="close-modal" onclick="closeModal('qty-modal')"></i>
-            <h3 style="margin-bottom: 20px;" id="modal-title">Agregar Cantidad</h3>
-            <p id="modal-barcode" style="color: var(--text-dim); margin-bottom: 20px;"></p>
+            <h3 style="margin-bottom: 5px;" id="modal-title">Agregar Cantidad</h3>
+            <div id="product-details" style="margin-bottom: 15px; text-align: center; display: none;">
+                <h4 id="product-name" style="color: var(--primary); font-size: 1.1rem;">Producto</h4>
+                <p id="product-price" style="color: var(--accent); font-weight: bold; font-size: 1.2rem;">$0.00</p>
+            </div>
+            <p id="modal-barcode" style="color: var(--text-dim); margin-bottom: 20px; font-size: 0.9rem;"></p>
             <div class="input-group">
                 <input type="number" id="qty-input" placeholder="Cantidad" value="1" min="1"
                     onkeydown="if(event.key==='Enter') confirmAddStock()">
@@ -424,6 +437,7 @@
         // App State
         let currentBarcode = null;
         let stockData = JSON.parse(localStorage.getItem('stock_data')) || [];
+        let productsData = JSON.parse(localStorage.getItem('products_data')) || {}; // { barcode: { name, price } }
         let html5QrCode = null;
 
         // Initialize Scanner
@@ -462,6 +476,17 @@
 
             currentBarcode = decodedText;
             document.getElementById('modal-barcode').innerText = `Código: ${decodedText}`;
+
+            // Buscar producto
+            const product = productsData[decodedText];
+            if (product) {
+                document.getElementById('product-details').style.display = 'block';
+                document.getElementById('product-name').innerText = product.name;
+                document.getElementById('product-price').innerText = product.price;
+            } else {
+                document.getElementById('product-details').style.display = 'none';
+            }
+
             openModal('qty-modal');
 
             setTimeout(() => {
@@ -611,9 +636,10 @@
         function exportToCSV() {
             if (stockData.length === 0) return alert("No hay datos para exportar.");
 
-            let csvContent = "data:text/csv;charset=utf-8,Codigo,Cantidad,Ultima Actualizacion\n";
+            let csvContent = "data:text/csv;charset=utf-8,Codigo,Nombre,Precio Unitario,Cantidad,Ultima Actualizacion\n";
             stockData.forEach(item => {
-                csvContent += `"${item.barcode}",${item.qty},"${item.lastUpdated}"\n`;
+                const product = productsData[item.barcode] || { name: 'Desconocido', price: '-' };
+                csvContent += `"${item.barcode}","${product.name}","${product.price}",${item.qty},"${item.lastUpdated}"\n`;
             });
 
             const encodedUri = encodeURI(csvContent);
@@ -625,7 +651,81 @@
             document.body.removeChild(link);
         }
 
-        // Modal Helpers
+        // Import Excel Logic
+        function handleFileSelect(input) {
+            const file = input.files[0];
+            if (!file) return;
+
+            readXlsxFile(file).then((rows) => {
+                // Asumimos formato: Col A (Codigo), Col B (Nombre), Col C (Precio)
+                // Omitimos la primera fila si parece encabezado
+                let startIndex = 0;
+                if (isNaN(rows[0][0]) && rows.length > 1) startIndex = 1;
+
+                let count = 0;
+                for (let i = startIndex; i < rows.length; i++) {
+                    const row = rows[i];
+                    if (row.length >= 2) {
+                        const code = String(row[0]).trim();
+                        const name = String(row[1]).trim();
+                        const price = row[2] ? `$${row[2]}` : '-';
+
+                        productsData[code] = { name, price };
+                        count++;
+                    }
+                }
+
+                localStorage.setItem('products_data', JSON.stringify(productsData));
+                alert(`¡Éxito! Se importaron ${count} productos.`);
+                renderHistory(); // Actualizar nombres en historial
+            }).catch(err => {
+                console.error(err);
+                alert("Error al leer el archivo. Asegúrate que sea un Excel válido (.xlsx).");
+            });
+
+            input.value = ''; // Reset
+        }
+
+        // Render Helper Update
+        function renderHistory() {
+            const container = document.getElementById('items-container');
+            container.innerHTML = "";
+
+            if (stockData.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <i data-lucide="package-search" size="48"></i>
+                        <p>No hay productos contados aún.</p>
+                    </div>
+                `;
+                lucide.createIcons();
+                return;
+            }
+
+            [...stockData].reverse().forEach((item, revIndex) => {
+                const actualIndex = stockData.length - 1 - revIndex;
+                const product = productsData[item.barcode];
+                const displayName = product ? product.name : item.barcode;
+                const displaySubtitle = product ? `${item.barcode} - ${product.price}` : item.lastUpdated;
+
+                const div = document.createElement('div');
+                div.className = "stock-item glass";
+                div.innerHTML = `
+                    <div class="stock-info">
+                        <h4>${displayName}</h4>
+                        <p>${displaySubtitle}</p>
+                    </div>
+                    <div class="stock-actions">
+                        <span class="qty-badge">${item.qty}</span>
+                        <i data-lucide="edit-3" class="action-icon" onclick="editItem(${actualIndex})"></i>
+                        <i data-lucide="trash-2" class="action-icon delete-icon" onclick="deleteItem(${actualIndex})"></i>
+                    </div>
+                `;
+                container.appendChild(div);
+            });
+            lucide.createIcons();
+        }
+
         function openModal(id) {
             document.getElementById(id).style.display = 'flex';
         }
