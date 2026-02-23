@@ -475,11 +475,24 @@
                 return;
             }
 
-            html5QrCode = new Html5Qrcode("reader");
+            html5QrCode = new Html5Qrcode("reader", {
+                experimentalFeatures: {
+                    useBarCodeDetectorIfSupported: true
+                }
+            });
             const config = {
                 fps: 10,
-                qrbox: { width: 200, height: 120 }, // Más pequeño para asegurar compatibilidad
-                aspectRatio: 1.0
+                qrbox: { width: 250, height: 150 },
+                aspectRatio: 1.0,
+                formatsToSupport: [
+                    Html5QrcodeSupportedFormats.EAN_13,
+                    Html5QrcodeSupportedFormats.EAN_8,
+                    Html5QrcodeSupportedFormats.CODE_128,
+                    Html5QrcodeSupportedFormats.CODE_39,
+                    Html5QrcodeSupportedFormats.UPC_A,
+                    Html5QrcodeSupportedFormats.UPC_E,
+                    Html5QrcodeSupportedFormats.ITF
+                ]
             };
 
             html5QrCode.start(
@@ -640,9 +653,10 @@
             if (!file) return;
 
             // Show loading
-            document.getElementById('scan-status').innerText = "Procesando imagen...";
+            document.getElementById('scan-status').innerText = "Procesando imagen... (Asegúrate de que no esté borrosa)";
+            document.getElementById('scan-status').style.color = "var(--primary)";
 
-            html5QrCode.scanFileV2(file, true)
+            html5QrCode.scanFileV2(file, false)
                 .then(decodedResult => {
                     // Success
                     onScanSuccess(decodedResult.decodedText, decodedResult);
